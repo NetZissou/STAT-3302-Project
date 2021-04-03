@@ -1,0 +1,96 @@
+---
+title: "Relative age effect in elite soccer"
+author: "Abigail Titzer, Yushan Zhao, Molly Thorbahn, Net Zhang"
+date: "4/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(tidyverse)
+library(lubridate)
+library(broom)
+library(patchwork)
+remove_quotes <- function(str) {
+  result <- str_match(string = str, pattern = '"(.*?)"')[,2]
+  if (is.na(result)) {
+    result <- str
+  }
+  return(result)
+}
+data_1 <- read_csv("data/data_1.csv") %>%
+  set_names(c("name", "DOB", "club", "country", "euros")) %>%
+  mutate(DOB = mdy(DOB))
+data_2 <- read_csv("data/data_2.csv") %>%
+  set_names(c("club", "player", "club_country", "nationality", 
+              "DOB", "domestic", "games_played")) %>%
+  mutate(DOB = mdy(DOB))
+```
+
+
+```{r}
+model_data_1 <- data_1 %>%
+  mutate(
+    year = year(DOB),
+    WB = isoweek(DOB)
+  )
+fit_poisson <- function(countries, model_data = model_data_1) {
+  # Filter Countries
+  model_data <- model_data %>%
+    filter(country %in% countries) %>%
+    mutate(
+      tB = (WB-0.5)/52
+    ) %>%
+    group_by(WB) %>%
+    summarise(N = n(), tB = mean(tB)) %>%
+    ungroup()
+  # Data Summary
+  # data_summary <- model_data %>%
+  #   summarise(N = n(), tB_mean = mean(tB))
+  # Model Fit
+  fit <- glm(N ~ tB, data = model_data, family = "poisson")
+  return(fit)
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+
+poisson_fit_data_all <- model_data_1 %>%
+  group_by(WB) %>%
+  summarise(N = n()) %>%
+  ungroup() %>%
+  mutate(
+    tB = (WB-0.5)/52
+  )
+poisson_fit_all <- glm(N ~ tB, data = poisson_fit_data_all, family = "poisson")
+p1 <- augment(poisson_fit_all) %>%
+  ggplot() +
+  geom_point(aes(x = tB, y = N)) +
+  geom_line(aes(x = tB, y = exp(.fitted)), size = 1.5) +
+  labs(x = "time of birth in year (tB)", 
+       y = "birth count per week",
+       title = "RAE bias in professional football:\nFREQUENCY analysis") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+p2 <- model_data_1 %>%
+  group_by(WB) %>%
+  summarise(N = n(), euros = mean(log(euros))) %>%
+  ungroup() %>%
+  mutate(
+    tB = (WB-0.5)/52
+  ) %>%
+  ggplot(aes(x = tB, y = euros)) +
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE, color = "black") +
+  labs(x = "time of birth in year (tB)", 
+       y = "mean log value per week",
+       title = "RAE bias in professional football:\nVALUE analysis") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+p1 | p2
+```
+
