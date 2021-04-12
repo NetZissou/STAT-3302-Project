@@ -2,12 +2,13 @@
 title: "Relative age effect in elite soccer"
 author: "Abigail Titzer, Yushan Zhao, Molly Thorbahn, Net Zhang"
 date: "4/3/2021"
-output: html_document
+output:
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-	echo = TRUE,
+	echo = FALSE,
 	message = FALSE,
 	warning = FALSE
 )
@@ -15,6 +16,7 @@ library(tidyverse)
 library(lubridate)
 library(broom)
 library(patchwork)
+library(kableExtra)
 remove_quotes <- function(str) {
   result <- str_match(string = str, pattern = '"(.*?)"')[,2]
   if (is.na(result)) {
@@ -29,48 +31,114 @@ data_2 <- read_csv("data/data_2.csv") %>%
   set_names(c("club", "player", "club_country", "nationality", 
               "DOB", "domestic", "games_played")) %>%
   mutate(DOB = mdy(DOB))
-```
 
-
-```{r}
 model_data_1 <- data_1 %>%
   mutate(
     year = year(DOB),
     WB = isoweek(DOB)
   )
-fit_poisson <- function(countries, model_data = model_data_1) {
-  # Filter Countries
-  model_data <- model_data %>%
-    filter(country %in% countries) %>%
+```
+
+
+# I: Introduction 
+
+Rephrase the main goals, content, and backgrounds of the article.
+
+
+# II: Modeling 
+
+## 2.1 Methods
+
+Our goal is to model the Relative Age Effecct (RAE) for frequency using the birth-week number ($W_{B}$). Here, the birth-week number ($W_{B}$) denote the week in which the player was born. For the sake of compatibility, we will transform $W_{B}$ into time of birth, illustrating how far through the competation year a player's birthday is :
+\[
+t_{B} = (W_{B} - 0.5)/52
+\]
+In other words, we scaled the player's birth-week number into the interval of $(0, 1)$.
+The data collect the information on the 1000 top professional soccer players in the major leagues. We think it is reasonable to apply the poisson regression model here since the probability of having a successful professional athlete is quite low. The overall model is denoted as below:
+\[
+Frequency = e^{\beta_{0}+\beta_{1}*t_{B}}
+\]
+From our model output, we get the estimate values of $\hat{\beta_{0}} = 3.2768$ and $\hat{\beta_{1}} = -0.7083$. Therefore, our fitted model is denoted as below:
+\[
+\hat{Frequency} = e^{3.2768 - 0.7083*t_{B}}
+\]
+
+## 2.2 Findings 
+
+```{r}
+model_data_pipe <- function(country_selected = "all", model_data_raw = model_data_1) {
+  if (country_selected != "all") {
+    model_data_raw <- model_data_raw %>%
+      filter(country == country_selected)
+  }
+  poisson_fit_data <- model_data_raw %>%
+    # group_by(WB) %>%
+    # summarise(N = n()) %>%
+    #ungroup() %>%
+    count(WB) %>%
+    rename(N = n) %>%
     mutate(
       tB = (WB-0.5)/52
-    ) %>%
-    group_by(WB) %>%
-    summarise(N = n(), tB = mean(tB)) %>%
-    ungroup()
-  # Data Summary
-  # data_summary <- model_data %>%
-  #   summarise(N = n(), tB_mean = mean(tB))
-  # Model Fit
-  fit <- glm(N ~ tB, data = model_data, family = "poisson")
-  return(fit)
+    )
+  return(poisson_fit_data)
 }
+
+fit_model_object <- function(model_data) {
+  return(
+    glm(N ~ tB, data = model_data, family = "poisson")
+  )
+}
+
+fit_model_params <- function(model_object) {
+  model_params <- 
+    tibble(
+    beta_0 = coef(model_object)[1],
+    beta_1 = coef(model_object)[2],
+    AIC = AIC(model_object)
+  )
+  return(model_params)
+}
+
+model_pipeline <- function(country_selected = "all", model_data_raw = model_data_1) {
+  
+  model_data <- model_data_pipe(country_selected, model_data_raw)
+  
+  model_object <- fit_model_object(model_data)
+  
+  model_params <- fit_model_params(model_object) %>%
+    mutate(Country = country_selected) %>%
+    select(Country, everything())
+  
+  return(model_params)
+}
+
+country_list <- c(
+  "Argentina", "Netherlands", "Turkey", "Belgium",
+  "Spain", "Italy", "Germany", "Portugal", "Brazil", 
+  "Russia", "France", "all"
+)
+
+model_result <- map_df(
+  country_list,
+  model_pipeline
+) %>%
+  mutate_if(is.numeric, list(~round(., digits = 4)))
+
+kbl(model_result, 
+    caption = "Table 1. Model results: Overall and country-by-country analysis") %>%
+  kable_classic(full_width = T, html_font = "Cambria")
 ```
+
 
 ```{r message=FALSE, warning=FALSE}
 
-poisson_fit_data_all <- model_data_1 %>%
-  group_by(WB) %>%
-  summarise(N = n()) %>%
-  ungroup() %>%
-  mutate(
-    tB = (WB-0.5)/52
-  )
+poisson_fit_data_all <- model_data_pipe()
+
 poisson_fit_all <- glm(N ~ tB, data = poisson_fit_data_all, family = "poisson")
 p1 <- augment(poisson_fit_all) %>%
   ggplot() +
   geom_point(aes(x = tB, y = N)) +
-  geom_line(aes(x = tB, y = exp(.fitted)), size = 1.5) +
+  geom_line(aes(x = tB, y = exp(.fitted)), size = 1.5, color = "steelblue") +
   labs(x = "time of birth in year (tB)", 
        y = "birth count per week",
        title = "RAE bias in professional football:\nFREQUENCY analysis") +
@@ -85,7 +153,7 @@ p2 <- model_data_1 %>%
   ) %>%
   ggplot(aes(x = tB, y = euros)) +
   geom_point() +
-  geom_smooth(method = lm, se = FALSE, color = "black") +
+  geom_smooth(method = lm, se = FALSE, color = "steelblue") +
   labs(x = "time of birth in year (tB)", 
        y = "mean log value per week",
        title = "RAE bias in professional football:\nVALUE analysis") +
@@ -93,4 +161,6 @@ p2 <- model_data_1 %>%
   theme(plot.title = element_text(hjust = 0.5))
 p1 | p2
 ```
+
+# III: Commentary & Future work
 
