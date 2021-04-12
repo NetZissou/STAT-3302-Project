@@ -42,6 +42,8 @@ model_data_1 <- data_1 %>%
 
 # I: Introduction 
 
+**TODO:**
+
 Rephrase the main goals, content, and backgrounds of the article.
 
 
@@ -130,6 +132,11 @@ kbl(model_result,
 ```
 
 
+**TODO:**
+
+Summarise the findings of the model results. See the *Result* section at **page 4** in the article. Here, pick out some of the countries that you interested. Make comparison between the countries. Make comment on the model fit as well.
+
+
 ```{r message=FALSE, warning=FALSE}
 
 poisson_fit_data_all <- model_data_pipe()
@@ -162,5 +169,19 @@ p2 <- model_data_1 %>%
 p1 | p2
 ```
 
+
+**TODO:**
+
+Summarise the findings of the overall model results. Interpret the parameters here basing on the content of the article.
+
 # III: Commentary & Future work
+
+**TODO:**
+
+Make some comment on the model results. Highlight the strength and drawbacks of the model, and further interests.
+
+
+**TODO:**
+
+Typo check before submitting
 
