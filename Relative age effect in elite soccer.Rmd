@@ -112,7 +112,7 @@ The original authors of this paper contend that those using RAE do not always ge
 ```{r fig.height=4}
 model_data_pipe() %>%
   ggplot(aes(x = WB, y = N)) +
-  geom_col(fill = "black") +
+  geom_col(fill = "darkred", color = "white") +
   geom_smooth(color = "orange") +
   theme_minimal() +
   labs(x = "week of birth in year (WB)", 
